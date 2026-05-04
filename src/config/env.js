@@ -68,7 +68,11 @@ function parseAllowedOrigins() {
       'Production requires FRONTEND_URL (or CORS_ORIGIN) with explicit origins; wildcard * is not allowed.'
     );
   }
-  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  // Trim whitespace and trailing slashes from each origin
+  const parts = raw.split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+    
   if (parts.length === 1) return parts[0];
   return parts;
 }

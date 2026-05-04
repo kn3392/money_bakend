@@ -1,0 +1,46 @@
+import { Router } from 'express';
+import healthRoutes from './healthRoutes.js';
+import authRoutes from './authRoutes.js';
+import accountRoutes from './accountRoutes.js';
+import dashboardRoutes from './dashboardRoutes.js';
+import categoryRoutes from './categoryRoutes.js';
+import transactionRoutes from './transactionRoutes.js';
+import ledgerRoutes from './ledgerRoutes.js';
+import personRoutes from './personRoutes.js';
+import exportRoutes from './exportRoutes.js';
+import uploadRoutes from './uploadRoutes.js';
+import recurringRoutes from './recurringRoutes.js';
+import budgetRoutes from './budgetRoutes.js';
+import savingsGoalRoutes from './savingsGoalRoutes.js';
+import loanRoutes from './loanRoutes.js';
+import splitExpenseRoutes from './splitExpenseRoutes.js';
+import tagRoutes from './tagRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
+import auditLogRoutes from './auditLogRoutes.js';
+import advancedReportRoutes from './advancedReportRoutes.js';
+import interestLoanRoutes from './interestLoanRoutes.js';
+
+const router = Router();
+
+router.use(healthRoutes);
+router.use('/auth', authRoutes);
+router.use('/accounts', accountRoutes);
+router.use('/dashboard', dashboardRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/transactions', transactionRoutes);
+router.use('/ledger', ledgerRoutes);
+router.use('/persons', personRoutes);
+router.use('/export', exportRoutes);
+router.use('/uploads', uploadRoutes);
+router.use('/recurring', recurringRoutes);
+router.use('/budgets', budgetRoutes);
+router.use('/goals', savingsGoalRoutes);
+router.use('/loans', loanRoutes);
+router.use('/interest-loans', interestLoanRoutes);
+router.use('/splits', splitExpenseRoutes);
+router.use('/tags', tagRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/audit-logs', auditLogRoutes);
+router.use('/advanced-reports', advancedReportRoutes);
+
+export default router;

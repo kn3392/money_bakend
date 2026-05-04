@@ -1,0 +1,179 @@
+{
+  "info": {
+    "_postman_id": "smartkhata-phase5-6",
+    "name": "SmartKhata Phase 5–6 Ledger & Persons",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "accountId", "value": "" },
+    { "key": "accountId2", "value": "" },
+    { "key": "catIncomeId", "value": "" },
+    { "key": "catExpenseId", "value": "" },
+    { "key": "txnId", "value": "" },
+    { "key": "personId", "value": "" },
+    { "key": "dateKey", "value": "2026-05-03" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth — login (set token manually from response)",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"you@example.com\",\n  \"password\": \"yourpassword\"\n}"
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      }
+    },
+    {
+      "name": "1 — POST income",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"income\",\n  \"amount\": 10000,\n  \"date\": \"{{dateKey}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"categoryId\": \"{{catIncomeId}}\",\n  \"note\": \"Salary\"\n}"
+        },
+        "url": "{{baseUrl}}/api/transactions"
+      }
+    },
+    {
+      "name": "2 — POST expense",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"expense\",\n  \"amount\": 2000,\n  \"date\": \"{{dateKey}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"categoryId\": \"{{catExpenseId}}\",\n  \"note\": \"Misc\"\n}"
+        },
+        "url": "{{baseUrl}}/api/transactions"
+      }
+    },
+    {
+      "name": "3 — POST transfer (no effect on net closing)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"transfer\",\n  \"amount\": 2000,\n  \"date\": \"{{dateKey}}\",\n  \"fromAccountId\": \"{{accountId}}\",\n  \"toAccountId\": \"{{accountId2}}\",\n  \"note\": \"Cash to bank\"\n}"
+        },
+        "url": "{{baseUrl}}/api/transactions"
+      }
+    },
+    {
+      "name": "4 — GET day ledger",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/ledger/day/{{dateKey}}"
+      }
+    },
+    {
+      "name": "5 — GET next day ledger (opening = prev closing)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/ledger/day/2026-05-04"
+      }
+    },
+    {
+      "name": "6 — PUT edit transaction (set txnId)",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"expense\",\n  \"amount\": 1500,\n  \"date\": \"{{dateKey}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"categoryId\": \"{{catExpenseId}}\",\n  \"note\": \"Edited amount\"\n}"
+        },
+        "url": "{{baseUrl}}/api/transactions/{{txnId}}"
+      }
+    },
+    {
+      "name": "7 — DELETE transaction",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/transactions/{{txnId}}"
+      }
+    },
+    {
+      "name": "8 — PUT lock day",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/ledger/day/{{dateKey}}/lock"
+      }
+    },
+    {
+      "name": "9 — POST transaction on locked day (expect 400)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"income\",\n  \"amount\": 1,\n  \"date\": \"{{dateKey}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"categoryId\": \"{{catIncomeId}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/transactions"
+      }
+    },
+    {
+      "name": "10 — PUT unlock day",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/ledger/day/{{dateKey}}/unlock"
+      }
+    },
+    {
+      "name": "11 — POST person",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"K\"\n}"
+        },
+        "url": "{{baseUrl}}/api/persons"
+      }
+    },
+    {
+      "name": "12 — GET persons",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/persons" }
+    },
+    {
+      "name": "13 — POST give to person (expense + personId)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"expense\",\n  \"amount\": 5000,\n  \"date\": \"{{dateKey}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"categoryId\": \"{{catExpenseId}}\",\n  \"personId\": \"{{personId}}\",\n  \"note\": \"Gave to K\"\n}"
+        },
+        "url": "{{baseUrl}}/api/transactions"
+      }
+    },
+    {
+      "name": "14 — POST person returns (income + personId)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"income\",\n  \"amount\": 2000,\n  \"date\": \"{{dateKey}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"categoryId\": \"{{catIncomeId}}\",\n  \"personId\": \"{{personId}}\",\n  \"note\": \"K returned\"\n}"
+        },
+        "url": "{{baseUrl}}/api/transactions"
+      }
+    },
+    {
+      "name": "15 — GET person detail + balance",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/persons/{{personId}}"
+      }
+    }
+  ]
+}

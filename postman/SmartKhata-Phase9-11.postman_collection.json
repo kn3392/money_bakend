@@ -1,0 +1,30 @@
+{
+  "info": {
+    "name": "SmartKhata Phase 9–11 Advanced + Export + Gujarati UI API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "dateKey", "value": "2026-05-03" },
+    { "key": "txnId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}" }]
+  },
+  "item": [
+    { "name": "POST undo-last", "request": { "method": "POST", "url": "{{baseUrl}}/api/transactions/undo-last" } },
+    { "name": "PUT edit income…", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{}" }, "url": "{{baseUrl}}/api/transactions/{{txnId}}" } },
+    { "name": "POST recurring", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"type\": \"expense\",\n  \"amount\": 100,\n  \"frequency\": \"monthly\",\n  \"startDate\": \"{{dateKey}}\",\n  \"note\": \"રિપીટ નોંધ\",\n  \"accountId\": \"REPLACE\",\n  \"categoryId\": \"REPLACE\"\n}" }, "url": "{{baseUrl}}/api/recurring" } },
+    { "name": "GET recurring", "request": { "method": "GET", "url": "{{baseUrl}}/api/recurring" } },
+    { "name": "POST recurring run-due", "request": { "method": "POST", "url": "{{baseUrl}}/api/recurring/run-due" } },
+    { "name": "POST upload receipt multipart", "request": { "method": "POST", "body": { "mode": "formdata", "formdata": [{ "key": "receipt", "type": "file", "src": "" }] }, "url": "{{baseUrl}}/api/uploads/receipt" } },
+    { "name": "GET export daily pdf", "request": { "method": "GET", "url": "{{baseUrl}}/api/export/daily?date={{dateKey}}&type=pdf" } },
+    { "name": "GET export monthly pdf", "request": { "method": "GET", "url": "{{baseUrl}}/api/export/monthly?month=5&year=2026&type=pdf" } },
+    { "name": "GET export FY pdf", "request": { "method": "GET", "url": "{{baseUrl}}/api/export/financial-year?financialYear=2026-27&type=pdf" } },
+    { "name": "GET export excel", "request": { "method": "GET", "url": "{{baseUrl}}/api/export/transactions?type=excel" } },
+    { "name": "GET export json backup", "request": { "method": "GET", "url": "{{baseUrl}}/api/export/backup?type=json" } },
+    { "name": "POST restore backup", "request": { "method": "POST", "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": "" }, { "key": "confirmRestore", "value": "true" }, { "key": "replaceExisting", "value": "false" }] }, "url": "{{baseUrl}}/api/export/restore-backup" } }
+  ]
+}

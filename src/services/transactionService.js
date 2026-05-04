@@ -207,8 +207,15 @@ export async function listTransactionsForUserDay(userId, dateKey) {
     dateKey,
     ...ACTIVE_TRANSACTION_MATCH,
   })
-    .populate(populateTxn)
-    .sort({ createdAt: 1 });
+    .populate({ path: 'accountId', select: 'name type', options: { lean: true } })
+    .populate({ path: 'categoryId', select: 'name type color', options: { lean: true } })
+    .populate({ path: 'fromAccountId', select: 'name type', options: { lean: true } })
+    .populate({ path: 'toAccountId', select: 'name type', options: { lean: true } })
+    .populate({ path: 'personId', select: 'name balance totalGiven totalTaken isActive', options: { lean: true } })
+    .populate({ path: 'tagIds', select: 'name color isActive', options: { lean: true } })
+    .select('type amount dateKey note attachmentUrl financialYear accountId categoryId fromAccountId toAccountId personId tagIds status createdAt updatedAt')
+    .sort({ createdAt: 1 })
+    .lean();
 }
 
 /**

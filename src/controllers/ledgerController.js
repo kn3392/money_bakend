@@ -31,7 +31,9 @@ function serializeTx(doc) {
 }
 
 /**
- * GET /api/ledger/day/:date — rebuild aggregate chain then return day view.
+ * GET /api/ledger/day/:date — return day view from cached DayLedger.
+ * Only rebuilds the chain if the day row is missing (first visit or stale).
+ * Chain recalculation is triggered by mutations (create/update/delete), not reads.
  */
 export async function getDayLedger(req, res) {
   const uid = req.user._id.toString();
@@ -42,15 +44,22 @@ export async function getDayLedger(req, res) {
     throw new AppError('Invalid date; use YYYY-MM-DD', 400);
   }
 
-  const earliest = await getEarliestTxnDateKey(uid);
-  const chainStart = earliest ?? dateKey;
-
-  await recalculateLedgerChainFrom(uid, chainStart);
-
-  const day = await DayLedger.findOne({
+  // Fast path: read cached row first
+  let day = await DayLedger.findOne({
     userId: new mongoose.Types.ObjectId(uid),
     dateKey,
   }).lean();
+
+  // Only rebuild if the row is missing (first visit to this day)
+  if (!day) {
+    const earliest = await getEarliestTxnDateKey(uid);
+    const chainStart = earliest ?? dateKey;
+    await recalculateLedgerChainFrom(uid, chainStart);
+    day = await DayLedger.findOne({
+      userId: new mongoose.Types.ObjectId(uid),
+      dateKey,
+    }).lean();
+  }
 
   if (!day) throw new AppError('Day ledger unavailable', 500);
 
@@ -93,19 +102,10 @@ export async function lockDay(req, res) {
     throw new AppError('Invalid date; use YYYY-MM-DD', 400);
   }
   await setLedgerLock(uid, dateKey, true);
-
-  await recalculateLedgerChainFrom(
-    uid,
-    (await getEarliestTxnDateKey(uid)) ?? dateKey
-  );
-
+  // Only rebuild from this day forward, not from the beginning of time
+  await recalculateLedgerChainFrom(uid, dateKey);
   const day = await getLedgerRow(uid, dateKey);
-
-  res.json({
-    success: true,
-    message: 'Day locked',
-    ledger: day,
-  });
+  res.json({ success: true, message: 'Day locked', ledger: day });
 }
 
 /** PUT unlock */
@@ -118,17 +118,8 @@ export async function unlockDay(req, res) {
     throw new AppError('Invalid date; use YYYY-MM-DD', 400);
   }
   await setLedgerLock(uid, dateKey, false);
-
-  await recalculateLedgerChainFrom(
-    uid,
-    (await getEarliestTxnDateKey(uid)) ?? dateKey
-  );
-
+  // Only rebuild from this day forward, not from the beginning of time
+  await recalculateLedgerChainFrom(uid, dateKey);
   const day = await getLedgerRow(uid, dateKey);
-
-  res.json({
-    success: true,
-    message: 'Day unlocked',
-    ledger: day,
-  });
+  res.json({ success: true, message: 'Day unlocked', ledger: day });
 }

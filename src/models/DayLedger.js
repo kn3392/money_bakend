@@ -57,5 +57,6 @@ const dayLedgerSchema = new mongoose.Schema(
 );
 
 dayLedgerSchema.index({ userId: 1, dateKey: 1 }, { unique: true });
+dayLedgerSchema.index({ userId: 1, dateKey: -1 }); // fast "latest day" lookups
 
 export const DayLedger = mongoose.model('DayLedger', dayLedgerSchema);

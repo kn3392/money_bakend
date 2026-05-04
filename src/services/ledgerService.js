@@ -145,13 +145,98 @@ async function resolveMaxRebuildDate(userId, fromDateKey) {
 /**
  * Recompute DayLedger rows from `fromDateKey` forward through the latest affected calendar day.
  * Required after create/update/delete/move of transactions because opening depends on prior closing chain.
+ *
+ * OPTIMISATION: skip days that have no transactions AND already have a correct
+ * carry-forward (opening == previous closing, income == 0, expense == 0).
+ * This avoids re-writing every row from the beginning of time on every GET.
  */
 export async function recalculateLedgerChainFrom(userId, fromDateKey, session = null) {
   const endKey = await resolveMaxRebuildDate(userId, fromDateKey);
   let d = fromDateKey;
 
+  // Fetch all existing ledger rows in range in one query to avoid N+1 reads
+  const uid = toOid(userId);
+  const existingRows = await DayLedger.find({
+    userId: uid,
+    dateKey: { $gte: fromDateKey, $lte: endKey },
+  })
+    .select('dateKey openingBalance totalIncome totalExpense closingBalance isLocked')
+    .lean();
+  const rowMap = Object.fromEntries(existingRows.map((r) => [r.dateKey, r]));
+
+  // Fetch all active transactions in range in one query
+  const txns = await Transaction.find({
+    userId: uid,
+    dateKey: { $gte: fromDateKey, $lte: endKey },
+    ...ACTIVE_TRANSACTION_MATCH,
+  })
+    .select('dateKey type amount')
+    .lean();
+
+  // Group by dateKey
+  const txByDay = {};
+  for (const t of txns) {
+    if (!txByDay[t.dateKey]) txByDay[t.dateKey] = [];
+    txByDay[t.dateKey].push(t);
+  }
+
+  // Walk the chain, only writing rows that actually changed
+  let prevClosing = null; // will be resolved lazily on first iteration
+
   while (compareDateKeys(d, endKey) <= 0) {
-    await recalculateDayLedger(userId, d, session);
+    // Determine opening balance
+    let opening;
+    if (prevClosing !== null) {
+      opening = prevClosing;
+    } else {
+      opening = await getOpeningBalance(userId, d);
+    }
+
+    const dayTxns = txByDay[d] ?? [];
+    let income = 0;
+    let expense = 0;
+    let transferVol = 0;
+    for (const t of dayTxns) {
+      if (t.type === 'income') income += t.amount;
+      else if (t.type === 'expense') expense += t.amount;
+      else if (t.type === 'transfer') transferVol += t.amount;
+    }
+    const closing = opening + income - expense;
+
+    // Skip write if nothing changed (avoids unnecessary Atlas writes)
+    const existing = rowMap[d];
+    const unchanged =
+      existing &&
+      existing.openingBalance === opening &&
+      existing.totalIncome === income &&
+      existing.totalExpense === expense &&
+      existing.closingBalance === closing;
+
+    if (!unchanged) {
+      const opts = session ? { session } : {};
+      await DayLedger.findOneAndUpdate(
+        { userId: uid, dateKey: d },
+        {
+          $set: {
+            date: dateKeyToUtcNoon(d),
+            openingBalance: opening,
+            totalIncome: income,
+            totalExpense: expense,
+            totalTransferIn: transferVol,
+            totalTransferOut: transferVol,
+            closingBalance: closing,
+          },
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+          ...opts,
+        }
+      );
+    }
+
+    prevClosing = closing;
     d = getNextDateKey(d);
   }
 }

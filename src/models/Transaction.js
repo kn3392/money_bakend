@@ -120,6 +120,12 @@ transactionSchema.index({ userId: 1, financialYear: 1 });
 transactionSchema.index({ userId: 1, type: 1 });
 transactionSchema.index({ userId: 1, accountId: 1 });
 transactionSchema.index({ userId: 1, tagIds: 1 });
+// Compound indexes for the most common query patterns
+transactionSchema.index({ userId: 1, dateKey: 1, status: 1 });
+transactionSchema.index({ userId: 1, type: 1, status: 1 });
+transactionSchema.index({ userId: 1, type: 1, accountId: 1, status: 1 });
+transactionSchema.index({ userId: 1, type: 1, toAccountId: 1, status: 1 });
+transactionSchema.index({ userId: 1, type: 1, fromAccountId: 1, status: 1 });
 
 transactionSchema.pre('validate', function setDerivedDates(next) {
   if (this.date && (!this.dateKey || !this.financialYear)) {

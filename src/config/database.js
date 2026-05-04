@@ -27,7 +27,13 @@ mongoose.connection.on('error', (err) => {
 export async function connectDB() {
   await mongoose.connect(env.MONGO_URI, {
     maxPoolSize: 10,
-    serverSelectionTimeoutMS: 5000,
+    minPoolSize: 2,           // keep 2 connections warm — avoids cold-start latency on Atlas
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    connectTimeoutMS: 10000,
+    heartbeatFrequencyMS: 10000, // detect Atlas failover faster
+    retryWrites: true,
+    retryReads: true,
   });
 
   logger.info('MongoDB connected', {

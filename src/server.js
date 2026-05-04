@@ -36,6 +36,20 @@ async function start() {
         logger.warn(
           'Receipt uploads use local disk under UPLOAD_DIR. Ephemeral filesystems (e.g. some Render/Railway instances) will lose files on restart — use S3, Cloudinary, or similar for durable receipt storage.'
         );
+        // Self-ping every 14 minutes to prevent Render free-tier cold starts (sleep after 15 min idle)
+        const selfUrl = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
+        if (selfUrl) {
+          const pingUrl = `${selfUrl.replace(/\/+$/, '')}/api/health`;
+          setInterval(() => {
+            import('http').then(({ default: httpModule }) => {
+              const req = httpModule.get(pingUrl, (res) => {
+                res.resume(); // drain response
+              });
+              req.on('error', () => {}); // silently ignore ping errors
+            }).catch(() => {});
+          }, 14 * 60 * 1000);
+          logger.info('Keep-alive self-ping scheduled', { url: pingUrl });
+        }
       }
     });
 

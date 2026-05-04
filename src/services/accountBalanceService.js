@@ -9,10 +9,16 @@ function toOid(userId) {
 /**
  * Per-account flows from active transactions only (excludes deleted/undone).
  * currentBalance = openingBalance + income - expense + transferIn - transferOut
+ *
+ * Uses a single $facet aggregation instead of 6 separate queries to reduce
+ * round-trips to MongoDB Atlas.
  */
 export async function getAccountFinancialRows(userId) {
   const uid = toOid(userId);
-  const accounts = await Account.find({ userId: uid, isActive: true }).sort({ name: 1 });
+  const accounts = await Account.find({ userId: uid, isActive: true })
+    .sort({ name: 1 })
+    .select('name type openingBalance currentBalance isDefault description')
+    .lean();
   const ids = accounts.map((a) => a._id);
   if (!ids.length) {
     return {
@@ -27,69 +33,48 @@ export async function getAccountFinancialRows(userId) {
     };
   }
 
-  const [income, expense, transferIn, transferOut, incAll, expAll] = await Promise.all([
-    Transaction.aggregate([
-      {
-        $match: {
-          userId: uid,
-          type: 'income',
-          accountId: { $in: ids },
-          ...ACTIVE_TRANSACTION_MATCH,
-        },
+  // Single aggregation with $facet — one round-trip instead of 6
+  const [result] = await Transaction.aggregate([
+    {
+      $match: {
+        userId: uid,
+        ...ACTIVE_TRANSACTION_MATCH,
       },
-      { $group: { _id: '$accountId', total: { $sum: '$amount' } } },
-    ]),
-    Transaction.aggregate([
-      {
-        $match: {
-          userId: uid,
-          type: 'expense',
-          accountId: { $in: ids },
-          ...ACTIVE_TRANSACTION_MATCH,
-        },
+    },
+    {
+      $facet: {
+        incomeByAccount: [
+          { $match: { type: 'income', accountId: { $in: ids } } },
+          { $group: { _id: '$accountId', total: { $sum: '$amount' } } },
+        ],
+        expenseByAccount: [
+          { $match: { type: 'expense', accountId: { $in: ids } } },
+          { $group: { _id: '$accountId', total: { $sum: '$amount' } } },
+        ],
+        transferInByAccount: [
+          { $match: { type: 'transfer', toAccountId: { $in: ids } } },
+          { $group: { _id: '$toAccountId', total: { $sum: '$amount' } } },
+        ],
+        transferOutByAccount: [
+          { $match: { type: 'transfer', fromAccountId: { $in: ids } } },
+          { $group: { _id: '$fromAccountId', total: { $sum: '$amount' } } },
+        ],
+        totalIncomeAll: [
+          { $match: { type: 'income' } },
+          { $group: { _id: null, s: { $sum: '$amount' } } },
+        ],
+        totalExpenseAll: [
+          { $match: { type: 'expense' } },
+          { $group: { _id: null, s: { $sum: '$amount' } } },
+        ],
       },
-      { $group: { _id: '$accountId', total: { $sum: '$amount' } } },
-    ]),
-    Transaction.aggregate([
-      {
-        $match: {
-          userId: uid,
-          type: 'transfer',
-          toAccountId: { $in: ids },
-          ...ACTIVE_TRANSACTION_MATCH,
-        },
-      },
-      { $group: { _id: '$toAccountId', total: { $sum: '$amount' } } },
-    ]),
-    Transaction.aggregate([
-      {
-        $match: {
-          userId: uid,
-          type: 'transfer',
-          fromAccountId: { $in: ids },
-          ...ACTIVE_TRANSACTION_MATCH,
-        },
-      },
-      { $group: { _id: '$fromAccountId', total: { $sum: '$amount' } } },
-    ]),
-    Transaction.aggregate([
-      {
-        $match: { userId: uid, type: 'income', ...ACTIVE_TRANSACTION_MATCH },
-      },
-      { $group: { _id: null, s: { $sum: '$amount' } } },
-    ]),
-    Transaction.aggregate([
-      {
-        $match: { userId: uid, type: 'expense', ...ACTIVE_TRANSACTION_MATCH },
-      },
-      { $group: { _id: null, s: { $sum: '$amount' } } },
-    ]),
+    },
   ]);
 
-  const mapIn = Object.fromEntries(income.map((r) => [r._id.toString(), r.total]));
-  const mapEx = Object.fromEntries(expense.map((r) => [r._id.toString(), r.total]));
-  const mapTi = Object.fromEntries(transferIn.map((r) => [r._id.toString(), r.total]));
-  const mapTo = Object.fromEntries(transferOut.map((r) => [r._id.toString(), r.total]));
+  const mapIn = Object.fromEntries((result.incomeByAccount ?? []).map((r) => [r._id.toString(), r.total]));
+  const mapEx = Object.fromEntries((result.expenseByAccount ?? []).map((r) => [r._id.toString(), r.total]));
+  const mapTi = Object.fromEntries((result.transferInByAccount ?? []).map((r) => [r._id.toString(), r.total]));
+  const mapTo = Object.fromEntries((result.transferOutByAccount ?? []).map((r) => [r._id.toString(), r.total]));
 
   const rows = accounts.map((a) => {
     const id = a._id.toString();
@@ -116,8 +101,8 @@ export async function getAccountFinancialRows(userId) {
     };
   });
 
-  const totalIncomeAll = incAll[0]?.s ?? 0;
-  const totalExpenseAll = expAll[0]?.s ?? 0;
+  const totalIncomeAll = result.totalIncomeAll[0]?.s ?? 0;
+  const totalExpenseAll = result.totalExpenseAll[0]?.s ?? 0;
   const openingBalanceTotal = rows.reduce((s, r) => s + r.openingBalance, 0);
   const closingBalanceTotal = rows.reduce((s, r) => s + r.currentBalance, 0);
 
@@ -154,10 +139,12 @@ export async function recalculateAccountBalances(userId) {
 
 /**
  * Sync DB balances and return dashboard / summary payload (authoritative figures).
+ * Persists computed balances back to Account documents for caching.
  */
 export async function syncAccountBalancesAndGetSummary(userId) {
   const { rows, cashFlow } = await getAccountFinancialRows(userId);
-  await persistComputedBalances(userId, rows);
+  // Persist in background — don't await, dashboard response is already correct
+  void persistComputedBalances(userId, rows);
   const totalAvailableBalance = rows.reduce((s, r) => s + r.currentBalance, 0);
   const hasNegativeBalance = rows.some((r) => r.currentBalance < 0);
   return {

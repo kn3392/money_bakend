@@ -54,7 +54,7 @@ export async function getDayLedger(req, res) {
   if (!day) {
     const earliest = await getEarliestTxnDateKey(uid);
     const chainStart = earliest ?? dateKey;
-    await recalculateLedgerChainFrom(uid, chainStart);
+    await recalculateLedgerChainFrom(uid, chainStart, dateKey);
     day = await DayLedger.findOne({
       userId: new mongoose.Types.ObjectId(uid),
       dateKey,

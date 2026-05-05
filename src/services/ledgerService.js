@@ -121,7 +121,7 @@ export async function recalculateDayLedger(userId, dateKey, session = null) {
   );
 }
 
-async function resolveMaxRebuildDate(userId, fromDateKey) {
+async function resolveMaxRebuildDate(userId, fromDateKey, upToDateKey = null) {
   const uid = toOid(userId);
   const lastTxn = await Transaction.findOne({
     userId: uid,
@@ -138,6 +138,9 @@ async function resolveMaxRebuildDate(userId, fromDateKey) {
   if (lastLedger?.dateKey && compareDateKeys(lastLedger.dateKey, end) > 0) {
     end = lastLedger.dateKey;
   }
+  if (upToDateKey && compareDateKeys(upToDateKey, end) > 0) {
+    end = upToDateKey;
+  }
   if (compareDateKeys(end, fromDateKey) < 0) end = fromDateKey;
   return end;
 }
@@ -150,8 +153,13 @@ async function resolveMaxRebuildDate(userId, fromDateKey) {
  * carry-forward (opening == previous closing, income == 0, expense == 0).
  * This avoids re-writing every row from the beginning of time on every GET.
  */
-export async function recalculateLedgerChainFrom(userId, fromDateKey, session = null) {
-  const endKey = await resolveMaxRebuildDate(userId, fromDateKey);
+export async function recalculateLedgerChainFrom(
+  userId,
+  fromDateKey,
+  upToDateKey = null,
+  session = null
+) {
+  const endKey = await resolveMaxRebuildDate(userId, fromDateKey, upToDateKey);
   let d = fromDateKey;
 
   // Fetch all existing ledger rows in range in one query to avoid N+1 reads
